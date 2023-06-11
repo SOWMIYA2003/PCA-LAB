@@ -9,6 +9,56 @@ __global__ void sumArraysOnGPU(float *A, float *B, float *C, const int N)
 
 }
 ```
+```
+    // set up device
+    int dev = 0;
+    cudaDeviceProp deviceProp;
+    CHECK(cudaGetDeviceProperties(&deviceProp, dev));
+    printf("Using Device %d: %s\n", dev, deviceProp.name);
+    CHECK(cudaSetDevice(dev));
+
+    // set up data size of vectors
+    int nElem = 1 << 27;
+    printf("Vector size %d\n", nElem);
+
+    // malloc device global memory
+    float *d_A, *d_B, *d_C;
+    CHECK(cudaMalloc((float**)&d_A, nBytes));
+    CHECK(cudaMalloc((float**)&d_B, nBytes));
+    CHECK(cudaMalloc((float**)&d_C, nBytes));
+
+    // transfer data from host to device
+    CHECK(cudaMemcpy(d_A, h_A, nBytes, cudaMemcpyHostToDevice));
+    CHECK(cudaMemcpy(d_B, h_B, nBytes, cudaMemcpyHostToDevice));
+    CHECK(cudaMemcpy(d_C, gpuRef, nBytes, cudaMemcpyHostToDevice));
+
+    // invoke kernel at host side
+    int iLen = 1023;
+    dim3 block (iLen);
+    dim3 grid  ((nElem + block.x - 1) / block.x);
+
+    iStart = seconds();
+    sumArraysOnGPU<<<grid, block>>>(d_A, d_B, d_C, nElem);
+    CHECK(cudaDeviceSynchronize());
+    iElaps = seconds() - iStart;
+    printf("sumArraysOnGPU <<<  %d, %d  >>>  Time elapsed %f sec\n", grid.x,
+           block.x, iElaps);
+
+    // check kernel error
+    CHECK(cudaGetLastError()) ;
+
+    // copy kernel result back to host side
+    CHECK(cudaMemcpy(gpuRef, d_C, nBytes, cudaMemcpyDeviceToHost));
+
+    // check device results
+    checkResult(hostRef, gpuRef, nElem);
+
+    // free device global memory
+    CHECK(cudaFree(d_A));
+    CHECK(cudaFree(d_B));
+    CHECK(cudaFree(d_C));
+
+```
 ### MATRIX SUMMATION WITH A 2D GRID AND 2D BLOCKS
 ```
 // grid 2D block 2D
@@ -21,6 +71,8 @@ __global__ void sumMatrixOnGPU2D(int *MatA, int *MatB, int *MatC, int nx,int ny)
     if (ix < nx && iy < ny)
         MatC[idx] = MatA[idx] + MatB[idx];
 }
+```
+```
 ```
 ### SIMPLE WARP DIVERGENCE: SUM REDUCTION
 #### U8.cu
