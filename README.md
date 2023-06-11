@@ -180,3 +180,151 @@ __global__ void setRowReadRow(int *out)
     out[idx] = tile[threadIdx.y][threadIdx.x] ;
 }
 ```
+#### setColReadCol
+```
+__global__ void setColReadCol(int *out)
+{
+    // static shared memory
+    __shared__ int tile[BDIMX][BDIMY];
+
+    // mapping from thread index to global memory index
+    unsigned int idx = threadIdx.y * blockDim.x + threadIdx.x;
+
+    // shared memory store operation
+    tile[threadIdx.x][threadIdx.y] = idx;
+
+    // wait for all threads to complete
+    __syncthreads();
+
+    // shared memory load operation
+    out[idx] = tile[threadIdx.x][threadIdx.y];
+}
+```
+#### setColReadCol2
+```
+__global__ void setColReadCol2(int *out)
+{
+    // static shared memory
+    __shared__ int tile[BDIMY][BDIMX];
+
+    // mapping from 2D thread index to linear memory
+    unsigned int idx = threadIdx.y * blockDim.x + threadIdx.x;
+
+    // convert idx to transposed coordinate (row, col)
+    unsigned int irow = idx / blockDim.y;
+    unsigned int icol = idx % blockDim.y;
+
+    // shared memory store operation
+    tile[icol][irow] = idx;
+
+    // wait for all threads to complete
+    __syncthreads();
+
+    // shared memory load operation
+    out[idx] = tile[icol][irow] ;
+}
+```
+#### setRowReadCol
+```
+__global__ void setRowReadCol(int *out)
+{
+    // static shared memory
+    __shared__ int tile[BDIMY][BDIMX];
+
+    // mapping from 2D thread index to linear memory
+    unsigned int idx = threadIdx.y * blockDim.x + threadIdx.x;
+
+    // convert idx to transposed coordinate (row, col)
+    unsigned int irow = idx / blockDim.y;
+    unsigned int icol = idx % blockDim.y;
+
+    // shared memory store operation
+    tile[threadIdx.y][threadIdx.x] = idx;
+
+    // wait for all threads to complete
+    __syncthreads();
+
+    // shared memory load operation
+    out[idx] = tile[icol][irow];
+}
+```
+#### setRowReadColPad
+```
+__global__ void setRowReadColPad(int *out)
+{
+    // static shared memory
+    __shared__ int tile[BDIMY][BDIMX + IPAD];
+
+    // mapping from 2D thread index to linear memory
+    unsigned int idx = threadIdx.y * blockDim.x + threadIdx.x;
+
+    // convert idx to transposed (row, col)
+    unsigned int irow = idx / blockDim.y;
+    unsigned int icol = idx % blockDim.y;
+
+    // shared memory store operation
+    tile[threadIdx.y][threadIdx.x] = idx;
+
+    // wait for all threads to complete
+    __syncthreads();
+
+    // shared memory load operation
+    out[idx] = tile[icol][irow] ;
+}
+```
+#### setRowReadColDyn
+```
+__global__ void setRowReadColDyn(int *out)
+{
+    // dynamic shared memory
+    extern  __shared__ int tile[];
+
+    // mapping from thread index to global memory index
+    unsigned int idx = threadIdx.y * blockDim.x + threadIdx.x;
+
+    // convert idx to transposed (row, col)
+    unsigned int irow = idx / blockDim.y;
+    unsigned int icol = idx % blockDim.y;
+
+    // convert back to smem idx to access the transposed element
+    unsigned int col_idx = icol * blockDim.x + irow;
+
+    // shared memory store operation
+    tile[idx] = idx;
+
+    // wait for all threads to complete
+    __syncthreads();
+
+    // shared memory load operation
+    out[idx] = tile[col_idx];
+}
+```
+#### setRowReadColDynPad
+```
+__global__ void setRowReadColDynPad(int *out)
+{
+    // dynamic shared memory
+    extern  __shared__ int tile[];
+
+    // mapping from thread index to global memory index
+    unsigned int g_idx = threadIdx.y * blockDim.x + threadIdx.x;
+
+    // convert idx to transposed (row, col)
+    unsigned int irow = g_idx / blockDim.y;
+    unsigned int icol = g_idx % blockDim.y;
+
+    unsigned int row_idx = threadIdx.y * (blockDim.x + IPAD) + threadIdx.x;
+
+    // convert back to smem idx to access the transposed element
+    unsigned int col_idx = icol * (blockDim.x + IPAD) + irow;
+
+    // shared memory store operation
+    tile[row_idx] = g_idx;
+
+    // wait for all threads to complete
+    __syncthreads();
+
+    // shared memory load operation
+    out[g_idx] = tile[col_idx];
+}
+```
