@@ -182,6 +182,7 @@ int main(int argc, char **argv)
 }
 ```
 ### Simple Warp Divergence: Sum reduction
+### 8
 ```
 int main()
 {
@@ -259,6 +260,86 @@ int main()
 
     return 0;
 }
+```
+### 16
+```
+int main()
+{
+    // Input size and host memory allocation
+    unsigned int n = 1 << 20; // 1 million elements
+    size_t size = n * sizeof(int);
+    int *h_idata = (int *)malloc(size);
+    int *h_odata = (int *)malloc(size);
+
+    // Initialize input data on the host
+    for (unsigned int i = 0; i < n; i++)
+    {
+        h_idata[i] = 1;
+    }
+
+    // Device memory allocation
+    int *d_idata, *d_odata;
+    cudaMalloc((void **)&d_idata, size);
+    cudaMalloc((void **)&d_odata, size);
+
+    // Copy input data from host to device
+    cudaMemcpy(d_idata, h_idata, size, cudaMemcpyHostToDevice);
+
+    // Define grid and block dimensions
+    dim3 blockSize(256); // 256 threads per block
+    dim3 gridSize((n + blockSize.x * 16 - 1) / (blockSize.x * 16));
+
+    // Start CPU timer
+    struct timeval start_cpu, end_cpu;
+    gettimeofday(&start_cpu, NULL);
+
+    // Compute the sum on the CPU
+    int sum_cpu = 0;
+    for (unsigned int i = 0; i < n; i++)
+    {
+        sum_cpu += h_idata[i];
+    }
+
+    // Stop CPU timer
+    gettimeofday(&end_cpu, NULL);
+    double elapsedTime_cpu = getElapsedTime(start_cpu, end_cpu);
+
+    // Start GPU timer
+    struct timeval start_gpu, end_gpu;
+    gettimeofday(&start_gpu, NULL);
+
+    // Launch the reduction kernel
+    reduceUnrolling16<<<gridSize, blockSize>>>(d_idata, d_odata, n);
+
+    // Copy the result from device to host
+    cudaMemcpy(h_odata, d_odata, size, cudaMemcpyDeviceToHost);
+
+    // Compute the final sum on the GPU
+    int sum_gpu = 0;
+    for (unsigned int i = 0; i < gridSize.x; i++)
+    {
+        sum_gpu += h_odata[i];
+    }
+
+    // Stop GPU timer
+    gettimeofday(&end_gpu, NULL);
+    double elapsedTime_gpu = getElapsedTime(start_gpu, end_gpu);
+
+    // Print the results and elapsed times
+    printf("CPU Sum: %d\n", sum_cpu);
+    printf("GPU Sum: %d\n", sum_gpu);
+    printf("CPU Elapsed Time: %.2f ms\n", elapsedTime_cpu);
+    printf("GPU Elapsed Time: %.2f ms\n", elapsedTime_gpu);
+
+    // Free memory
+    free(h_idata);
+    free(h_odata);
+    cudaFree(d_idata);
+    cudaFree(d_odata);
+
+    return 0;
+}
+
 ```
 ### Matrix Addition with Unified Memory
 ```
